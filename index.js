@@ -1,6 +1,9 @@
 const express = require('express');
 const app = express();
+const morgan = require('morgan');
 app.use(express.json())
+
+app.use(morgan('tiny'))
 
 const generateId = () => {
     const maxId = persons.length > 0
@@ -41,7 +44,7 @@ let persons = [
 
 app.get('/', (req, res) => {
     response.send('<h1>Hello World!</h1>')
-  })
+})
   
 app.get('/api/persons', (req, res) => {
     res.json(persons)
@@ -51,6 +54,30 @@ app.get('/api/persons/:id', (req, res) => {
     const id = req.params.id
     const person = persons.find(person => person.id === id)
     person ? res.json(person) : res.status(404).end()
+});
+
+app.get('/info', (req, res) => {
+    const date = new Date()
+    const weekdays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+    const weekday = weekdays[date.getDay()]; // Get the current day (0 = Sunday, 1 = Monday, etc.)
+
+    // Manually format the date to DD-MM-YY format
+    const day = String(date.getDate()).padStart(2, '0'); // Day with leading zero
+    const month = String(date.getMonth() + 1).padStart(2, '0'); // Month with leading zero
+    const year = String(date.getFullYear()).slice(-2); // Last 2 digits of the year
+    const hours = String(date.getHours() % 12 || 12).padStart(2, '0'); // Convert 24-hour to 12-hour format
+    const minutes = String(date.getMinutes()).padStart(2, '0'); // Minutes with leading zero
+    const am_pm = date.getHours() >= 12 ? 'PM' : 'AM'; // Determine AM/PM
+    
+    // Construct the full formatted string
+    const formattedDate = `${weekday} ${day}-${month}-${year} ${hours}:${minutes} ${am_pm} IST`;
+    res.send
+        (`
+            <pre>
+                <p>Phone-Book has info of ${persons.length}</p>
+                <p>${formattedDate}</p>
+            </pre>
+        `)
 })
 
 
@@ -64,9 +91,17 @@ app.delete('/api/persons/:id' , (req , res) => {
 app.post('/api/persons', (req, res) => {
     const body = req.body
 
-    if(!body.name){
+    if(!body.name || !body.number){
         return res.sendStatus(400).json({
-            error : 'name missing'
+            error : 'name or number missing'
+        })
+    }
+
+    const nameExists = persons.some(person => person.name === body.name);
+
+    if(nameExists){
+        return res.json({
+            error : 'name must be unique'
         })
     }
 
@@ -80,6 +115,12 @@ app.post('/api/persons', (req, res) => {
     res.json(person)
 })
   
+
+const unknownEndpoint = (request, response) => {
+    response.status(404).send({ error: 'unknown endpoint' })
+  }
+  
+app.use(unknownEndpoint)
 
 const PORT = 3000;
 app.listen(PORT ,() => {
