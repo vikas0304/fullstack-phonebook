@@ -1,48 +1,15 @@
 const express = require('express');
 const app = express();
+const mongoose = require('mongoose');
 const morgan = require('morgan');
 const cors = require('cors')
+require('dotenv').config();
+const PhoneBook = require('./models/phonebook')
 
 app.use(cors())
 app.use(express.static('dist'))
 app.use(express.json())
 app.use(morgan('tiny'))
-
-const generateId = () => {
-    const maxId = persons.length > 0
-      ? Math.max(...persons.map(p => Number(p.id))) 
-      : 0
-
-    return String(maxId + 1)
-}
-
-let persons = [
-    { 
-      "id": "1",
-      "name": "Arto Hellas", 
-      "number": "040-123456"
-    },
-    { 
-      "id": "2",
-      "name": "Ada Lovelace", 
-      "number": "39-44-5323523"
-    },
-    { 
-      "id": "3",
-      "name": "Dan Abramov", 
-      "number": "12-43-234345"
-    },
-    { 
-      "id": "4",
-      "name": "Mary Poppendieck", 
-      "number": "39-23-6423122"
-    },
-    { 
-        "id": "5",
-        "name": "Vikas Pal", 
-        "number": "9594781303"
-    }
-]
 
 
 app.get('/', (req, res) => {
@@ -50,13 +17,29 @@ app.get('/', (req, res) => {
 })
   
 app.get('/api/persons', (req, res) => {
-    res.json(persons)
+    PhoneBook.find({})
+    .then(persons => res.json(persons))
 })
 
 app.get('/api/persons/:id', (req, res) => {
-    const id = req.params.id
-    const person = persons.find(person => person.id === id)
-    person ? res.json(person) : res.status(404).end()
+    const id = req.params.id;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).send({ error: 'malformatted id' });
+    }
+
+    PhoneBook.findById(id)
+    .then(person => {
+        if (person) {
+            res.json(person);
+        } else {
+            res.status(404).end();
+        }
+    })
+    .catch(error => {
+        console.log(error);
+        res.status(500).send({ error: 'server error' });
+    });
 });
 
 app.get('/info', (req, res) => {
@@ -93,37 +76,28 @@ app.delete('/api/persons/:id' , (req , res) => {
 
 app.post('/api/persons', (req, res) => {
     const body = req.body
-
-    if(!body.name || !body.number){
-        return res.sendStatus(400).json({
-            error : 'name or number missing'
-        })
+    if(!body.name || !body.number === undefined){
+        return res.status(400).json({ error: 'content missing' })
     }
 
-    const nameExists = persons.some(person => person.name === body.name);
-
-    if(nameExists){
-        return res.json({
-            error : 'name must be unique'
-        })
-    }
-
-    const person = {
-        id : generateId(),
+    const person = new PhoneBook({
         name : body.name,
-        number : body.number,
-    }
+        number : body.number
+    })
 
-    persons = persons.concat(person)
-    res.json(person)
+    person
+    .save()
+    .then(savedPerson => {
+        res.json(savedPerson)
+    })
 })
   
 
-const unknownEndpoint = (request, response) => {
-    response.status(404).send({ error: 'unknown endpoint' })
-  }
+// const unknownEndpoint = (request, response) => {
+//     response.status(404).send({ error: 'unknown endpoint' })
+//   }
   
-app.use(unknownEndpoint)
+// app.use(unknownEndpoint)
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT ,() => {
