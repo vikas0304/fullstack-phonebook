@@ -17,8 +17,24 @@ mongoose.connect(url)
     })
 
 const phoneBookSchema = new mongoose.Schema({
-    name: String,
-    number: String,
+    name: {
+      type: String,
+      minlength: [3, 'Name must be at least 3 characters long'],
+      required: [true, 'Name is required']
+    },
+    number: {
+        type: String,
+        required: [true, 'Number is required'],
+        validate: {
+            validator: function(v) {
+                // Check if the number has exactly 10 characters (ignoring spaces)
+                return /^\d{10}$/.test(v);
+            },
+            message: props => `${props.value} is not a valid 10-digit phone number!`
+        },
+        // Preprocess the number to remove spaces before saving
+        set: v => v.replace(/\s+/g, '') // Remove spaces
+    }
 })
 
 phoneBookSchema.set('toJSON', {

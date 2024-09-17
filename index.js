@@ -42,62 +42,88 @@ app.get('/api/persons/:id', (req, res) => {
     });
 });
 
-app.get('/info', (req, res) => {
-    const date = new Date()
-    const weekdays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-    const weekday = weekdays[date.getDay()]; // Get the current day (0 = Sunday, 1 = Monday, etc.)
+app.get('/info', (req, res, next) => {
+    PhoneBook.countDocuments({})
+    .then(count => {
+        const date = new Date();
+        const weekdays = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+        const weekday = weekdays[date.getDay()]; 
 
-    // Manually format the date to DD-MM-YY format
-    const day = String(date.getDate()).padStart(2, '0'); // Day with leading zero
-    const month = String(date.getMonth() + 1).padStart(2, '0'); // Month with leading zero
-    const year = String(date.getFullYear()).slice(-2); // Last 2 digits of the year
-    const hours = String(date.getHours() % 12 || 12).padStart(2, '0'); // Convert 24-hour to 12-hour format
-    const minutes = String(date.getMinutes()).padStart(2, '0'); // Minutes with leading zero
-    const am_pm = date.getHours() >= 12 ? 'PM' : 'AM'; // Determine AM/PM
-    
-    // Construct the full formatted string
-    const formattedDate = `${weekday} ${day}-${month}-${year} ${hours}:${minutes} ${am_pm} IST`;
-    res.send
-        (`
-            <pre>
-                <p>Phone-Book has info of ${persons.length}</p>
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = String(date.getFullYear()).slice(-2);
+        const hours = String(date.getHours() % 12 || 12).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const am_pm = date.getHours() >= 12 ? 'PM' : 'AM';
+
+        const formattedDate = `${weekday} ${day}-${month}-${year} ${hours}:${minutes} ${am_pm} IST`;
+
+        res.send(
+            `<pre>
+                <p>Phone-Book has info of ${count} people</p>
                 <p>${formattedDate}</p>
-            </pre>
-        `)
-})
-
-
-app.delete('/api/persons/:id' , (req , res) => {
-    const id = req.params.id;
-    persons = persons.filter(person => person.id !== id)
-    res.send('PhoneBook deleted succesfully');
-    res.status(204).end()
+            </pre>`
+        );
+    })
+    .catch(error => next(error));
 });
 
-app.post('/api/persons', (req, res) => {
-    const body = req.body
-    if(!body.name || !body.number === undefined){
-        return res.status(400).json({ error: 'content missing' })
-    }
+app.delete('/api/persons/:id' , (req , res , next) => {
+    PhoneBook.findByIdAndDelete(req.params.id)
+    .then(result => {
+        res.send({
+            message : "PhoneBook deleted succesfully"
+        }).status(204).end()
+    })
+    .catch(error => next(error))
+});
 
+app.post('/api/persons', (req, res, next) => {
+    const body = req.body;
+  
     const person = new PhoneBook({
-        name : body.name,
-        number : body.number
-    })
-
-    person
-    .save()
-    .then(savedPerson => {
-        res.json(savedPerson)
-    })
-})
+      name: body.name,
+      number: body.number
+    });
   
+    person.save()
+      .then(savedPerson => res.json(savedPerson))
+      .catch(error => next(error));  // Pass the error to the error handler
+});
 
-// const unknownEndpoint = (request, response) => {
-//     response.status(404).send({ error: 'unknown endpoint' })
-//   }
+app.put('/api/persons/:id', (req, res, next) => {
+    const { name, number } = req.body;
   
-// app.use(unknownEndpoint)
+    const updatedPerson = { name, number };
+  
+    PhoneBook.findByIdAndUpdate(req.params.id, updatedPerson, { new: true, runValidators: true, context: 'query' })
+      .then(updatedPerson => {
+        if (updatedPerson) {
+          res.json(updatedPerson);
+        } else {
+          res.status(404).end();
+        }
+      })
+      .catch(error => next(error));  // Pass the error to the error handler
+});
+
+const unknownEndpoint = (request, response) => {
+    response.status(404).send({ error: 'unknown endpoint' })
+}
+app.use(unknownEndpoint)
+
+const errorHandler = (error, request, response, next) => {
+    console.error(error.message)
+  
+    if (error.name === 'CastError') {
+      return response.status(400).send({ error: 'malformatted id' })
+    } else if (error.name === 'ValidationError'){
+        return response.status(400).json({ error: error.message });
+    }
+  
+    next(error)
+}
+app.use(errorHandler)
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT ,() => {
